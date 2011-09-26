@@ -75,9 +75,9 @@ recv({mask,Fin,Op,Len},Socket) ->
 recv({payload,Fin,Op,Len,Key},Socket) ->
     {ok,Payload} = gen_tcp:recv(Socket,Len),
     Data = mask(Key,Payload),
-    error_logger:info_report([
-        {data,Data}
-    ]),
+%    error_logger:info_report([
+%        {data,Data}
+%    ]),
     {Op,Data}.
 
 mask(undefined,Data) -> Data;
@@ -115,8 +115,9 @@ send(Fin,Op,Data,Socket) ->
         Op:4/integer,
         LenBytes/binary
     >>,
-    error_logger:info_report([
-        {head,Head},
-        {data,Data}
-    ]),
+%    error_logger:info_report([
+%        {client,Socket},
+%        {head,Head},
+%        {data,Data}
+%    ]),
     gen_tcp:send(Socket,[Head,Data]).

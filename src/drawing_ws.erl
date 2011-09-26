@@ -10,12 +10,14 @@ dispatch(Req) ->
     websocket:handle(Req,Pid).
 
 ws_handler(Socket) ->
+    process_flag(trap_exit,true),
     receive
         {ws_data,{_,Data}} ->
             io:format("~s~n",[Data]),
-            drawing_room:msg(1,Data),
-            pass;
+            drawing_room:msg(1,Data);
         {room_data,Data} ->
-            websocket:send(1,1,Data,Socket)
+            websocket:send(1,1,Data,Socket);
+        {'EXIT',_,Reason} ->
+            exit(Reason)
     end,
     erlang:hibernate(?MODULE,ws_handler,[Socket]).

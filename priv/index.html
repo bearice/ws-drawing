@@ -75,35 +75,46 @@
                 //ctx.save();
                 var master = true;
 
-                try {
-                    ws = new WebSocket("ws://icybear.net:8080/drawing");
-                }catch(exc) {
-                    console.error('Exception: ' + exc);
-                    alert("websocket error!");
-                    throw exec;
-                }  
-                ws.onopen = function(evt) {
-                    console.info("connected",evt);
-                };
-                ws.onerror = function(evt) {
-                    console.error("WSError",evt);
-                }
-                ws.onmessage = function(evt) {
-                	console.info("data",evt.data);
-                    var arr = evt.data.split(",");
-                    if(arr.pop()==xid)return;
-                    fun = canvas[arr.shift()];
-                    arr.push(true);
-                    fun.apply(canvas,arr);
-                };
-
-                var mouse_down = false;
-                $(document.body).bind('mouseup',function(evt){
-                    if(!mouse_down){
-                        return;
+                function ws_init(){
+                    try {
+                    	$("#msg").html("<font color='red'>Connecting...</font>");
+                        ws = new WebSocket("ws://192.168.100.30:8080/drawing");
+                    }catch(exc) {
+                        console.error('Exception: ' + exc);
+                        alert("websocket error!");
+                        throw exec;
+                    }  
+                    ws.onopen = function(evt) {
+                        $("#msg").html("<font color='green'>Connected.</font>");
+                        console.info("WSOpen",evt);
+                    };
+                    ws.onerror = function(evt) {
+                    	$("#msg").html("<font color='red'>WSError</font>");
+                        console.error("WSError",evt);
+                        setTimeout(ws_init,1000);
+                    };
+                    ws.onclose = function(evt) {
+                        $("#msg").html("<font color='red'>WSClose</font>");
+                        console.error("WSClose",evt);
+                        setTimeout(ws_init,1000);
                     }
-                	var x = evt.offsetX, y=evt.offsetY;
+                    ws.onmessage = function(evt) {
+                        console.info("WSData",evt.data);
+                        var arr = evt.data.split(",");
+                        if(arr.pop()==xid)return;
+                        fun = canvas[arr.shift()];
+                        arr.push(true);
+                        fun.apply(canvas,arr);
+                    };
+                }
+                ws_init();
+                var mouse_down = false;
+                var mouse_inside = false;
+                $(document.body).bind('mouseup',function(evt){
+                    if(!mouse_down){return;}
                     mouse_down = false;
+                    if(!mouse_inside){return;}
+                	var x = evt.offsetX, y=evt.offsetY;
                     canvas.up(x,y);
                 });
                 $('#canvas').bind('mousedown mouseenter',function(evt){
@@ -111,12 +122,15 @@
                     if(evt.type=="mousedown"){
                         mouse_down = true;
                     }else{
+                        mouse_inside = true;
                         if(!mouse_down)return;
                     }
+                    if(evt.which==0 && evt.button==0)return;
                     canvas.down(x,y);
                     evt.preventDefault();
                 }).bind('mousemove mouseout',function(evt){
                     var x = evt.offsetX, y=evt.offsetY;
+                    if(evt.which==0 && evt.button==0)return;
                     if(!mouse_down){
                         ctx.putImageData(old,0,0);
                         //ctx.restore();
@@ -126,10 +140,12 @@
                         ctx.fill();
                         return;
                     }
-                    if(evt.type!="mouseout"){
+                    if(evt.type=="mousemove"){
                         canvas.move(x,y);
+                        console.info(evt.which);
                     }else{
                         canvas.up(x,y);
+                        mouse_inside = false;
                     }
                 });
                 $(".color_picker").each(function(){
@@ -165,6 +181,7 @@
         </style>
     </head>
     <body>
+        <div id="msg"></div>
         <canvas id="canvas" height="300px" width="400px" style="cursor:crosshair;border: 2px solid gray;"></canvas>
         <div id="control">
             <input type="checkbox" id="master_switch"/><label>Master</label>

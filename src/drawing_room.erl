@@ -26,7 +26,7 @@ init([])->
 getRoomsByPid({_,PI},Pid) ->
     try ets:lookup_element(PI,Pid,2) of
         L  when is_list(L) -> L;
-        PK when is_reference(PK) -> [PK]
+        Room -> [Room]
     catch
         _:_ -> []
     end.
@@ -38,6 +38,19 @@ getPidsByRoom({Rooms,_},Room) ->
     catch
         _:_ -> []
     end.
+
+addPid({Rooms,Pids},Room,Pid) ->
+    ets:insert(Rooms,{Room,Pid}),
+    ets:insert(Pids,{Pid,Room}),
+    monitor(process,Pid),
+    ok.
+
+removePid({Rooms,Pids}=State,Pid) ->
+    R = getRoomsByPid(State,Pid),
+    ets:delete(Pids,Pid),
+    lists:foreach(fun(Room)->ets:delete_object(Rooms,{Room,Pid}) end,R),
+    ok.
+
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -48,18 +61,14 @@ getPidsByRoom({Rooms,_},Room) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_call({add,Room,Pid},_From,{Rooms,Pids}=State) ->
+handle_call({add,Room,Pid},_From,State) ->
     error_logger:info_report([{action,add},{pid,Pid},{room,Room}]),
-    ets:insert(Rooms,{Room,Pid}),
-    ets:insert(Pids,{Pid,Room}),
-    monitor(process,Pid),
+    addPid(State,Room,Pid),
     {reply,ok,State};
 
-handle_call({remove,Pid},_From,{Rooms,Pids}=State) ->
+handle_call({remove,Pid},_From,State) ->
     error_logger:info_report([{action,remove},{pid,Pid}]),
-    Rooms = getRoomsByPid(State,Pid),
-    ets:delete(Pids,Pid),
-    lists:foreach(fun(Room)->ets:delete_object(Rooms,{Room,Pid}) end,Rooms),
+    removePid(State,Pid),
     {reply,ok,State};
 
 handle_call(Msg,_From,State) ->
