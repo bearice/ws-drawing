@@ -1,0 +1,205 @@
+<html>
+    <head>
+        <title>Drawing</title>
+        <script src="jquery.js"></script>
+        <script>
+            $(function(){
+            	var xid = new Date().getTime();
+                var ws;
+                var debug  = $('#debug');
+                var canvasElem = document.getElementById("canvas");
+                var ctx=canvasElem.getContext('2d');
+                var old ;
+
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                function log(){
+                    var arr = Array.prototype.slice.call(arguments);
+                    arr.push(xid);
+                    var str = arr.join(",");
+                    if(ws){
+                        ws.send(str);
+                        console.info(str);
+                    }
+                }
+                
+                var canvas = {
+                    down: function (x,y,nolog){
+                        if(!nolog)log("down",x,y);
+                        ctx.putImageData(old,0,0);
+                        //ctx.restore();
+                        ctx.beginPath();
+                        ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2,true);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.moveTo(x,y);
+                    },
+                    up: function (x,y,nolog){
+                        if(!nolog)log("up",x,y);
+                        ctx.lineTo(x,y);
+                        ctx.stroke();
+                        ctx.closePath();
+                        ctx.moveTo(x,y);
+                        old = ctx.getImageData(0,0,canvasElem.width,canvasElem.height);
+                        //ctx.save();
+                    },
+                    move: function (x,y,nolog){
+                        if(!nolog)log("move",x,y);
+                        ctx.lineTo(x,y);
+                        ctx.moveTo(x,y);
+                        ctx.stroke();
+                    },
+                    color: function (val,nolog){
+                        if(!nolog)log("color",val);
+                        ctx.strokeStyle = val;
+                        ctx.fillStyle = val;
+                        $(".color_picker").removeClass("selected");
+                        $(".color_picker[value="+val+"]").addClass("selected");
+                    },
+                    size: function (val,nolog){
+                        if(!nolog)log("size",val);
+                        ctx.lineWidth = val;
+                        $("#size_picker").attr('value',val);
+                        $("#size_demo").css({
+                            'width': val+'px',
+                            'height': val+'px',
+                            'border-radius': val+'px',
+                        });
+                    },
+                }
+                canvas.size(10);
+                canvas.color('#000000');
+                old = ctx.getImageData(0,0,canvasElem.width,canvasElem.height);
+                //ctx.save();
+                var master = true;
+
+                try {
+                    ws = new WebSocket("ws://icybear.net:8080/drawing");
+                }catch(exc) {
+                    console.error('Exception: ' + exc);
+                    alert("websocket error!");
+                    throw exec;
+                }  
+                ws.onopen = function(evt) {
+                    console.info("connected",evt);
+                };
+                ws.onerror = function(evt) {
+                    console.error("WSError",evt);
+                }
+                ws.onmessage = function(evt) {
+                	console.info("data",evt.data);
+                    var arr = evt.data.split(",");
+                    if(arr.pop()==xid)return;
+                    fun = canvas[arr.shift()];
+                    arr.push(true);
+                    fun.apply(canvas,arr);
+                };
+
+                var mouse_down = false;
+                $(document.body).bind('mouseup',function(evt){
+                    if(!mouse_down){
+                        return;
+                    }
+                	var x = evt.offsetX, y=evt.offsetY;
+                    mouse_down = false;
+                    canvas.up(x,y);
+                });
+                $('#canvas').bind('mousedown mouseenter',function(evt){
+                	var x = evt.offsetX, y=evt.offsetY;
+                    if(evt.type=="mousedown"){
+                        mouse_down = true;
+                    }else{
+                        if(!mouse_down)return;
+                    }
+                    canvas.down(x,y);
+                    evt.preventDefault();
+                }).bind('mousemove mouseout',function(evt){
+                    var x = evt.offsetX, y=evt.offsetY;
+                    if(!mouse_down){
+                        ctx.putImageData(old,0,0);
+                        //ctx.restore();
+                        ctx.beginPath();
+                        ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2,true);
+                        ctx.closePath();
+                        ctx.fill();
+                        return;
+                    }
+                    if(evt.type!="mouseout"){
+                        canvas.move(x,y);
+                    }else{
+                        canvas.up(x,y);
+                    }
+                });
+                $(".color_picker").each(function(){
+                    var self = $(this);
+                    var value = self.attr("value");
+                    self.css("background-color",value);
+                    self.click(function(){
+                        canvas.color(value);
+                    });
+                });
+                $("#size_picker").bind('change',function(){
+                    canvas.size($(this).attr('value'));
+                });
+            });
+        </script>
+        <style>
+            .color_picker{
+                width: 32px;
+                height: 32px;
+                padding: 2px;
+                border: 2px solid white;
+                margin: 2px;
+            }
+            .color_picker.selected {
+            	border-color: gray;
+            }
+            #size_demo{
+                background-color: black;
+                width: 10px;
+                height: 10px;
+                border-radius: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" height="300px" width="400px" style="cursor:crosshair;border: 2px solid gray;"></canvas>
+        <div id="control">
+            <input type="checkbox" id="master_switch"/><label>Master</label>
+            <table bgcolor="#c0c0c0">
+                <tr>
+                    <td rowspan="2"><div class="color_picker" value="#FFFFFF"></div></td>
+                    <td><div class="color_picker" value="#000000"></div></td>
+                    <td><div class="color_picker" value="#666666"></div></td>
+                    <td><div class="color_picker" value="#AAAAAA"></div></td>
+
+                    <td><div class="color_picker" value="#FF0000"></div></td>
+                    <td><div class="color_picker" value="#FFFF00"></div></td>
+                    <td><div class="color_picker" value="#FF7700"></div></td>
+                    <td><div class="color_picker" value="#FF7777"></div></td>
+                    <td><div class="color_picker" value="#FF0077"></div></td>
+                    <td><div class="color_picker" value="#FF00FF"></div></td>
+                    <td rowspan="2">
+                        <input type="range" id="size_picker" min="1" max="100" value="10"/>
+                    </td>
+                    <td rowspan="2">
+                        <div id="size_demo"></div>
+                    </td>
+                </tr><tr> 
+                    <td><div class="color_picker" value="#00FF00"></div></td>
+                    <td><div class="color_picker" value="#77FF00"></div></td>
+                    <td><div class="color_picker" value="#77FF77"></div></td>
+                    <td><div class="color_picker" value="#00FF77"></div></td>
+                    <td><div class="color_picker" value="#00FFFF"></div></td>
+                    
+                    <td><div class="color_picker" value="#0000FF"></div></td>
+                    <td><div class="color_picker" value="#7700FF"></div></td>
+                    <td><div class="color_picker" value="#7777FF"></div></td>
+                    <td><div class="color_picker" value="#0077FF"></div></td>
+                </tr>
+            <table>
+        </div>
+    </body>
+</html>

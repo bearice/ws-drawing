@@ -1,0 +1,9 @@
+%% -*- erlang -*-
+{application, drawing,
+ [{description, "Drawing WebSocket backend"},
+  {vsn, "0.1"},
+  {modules, []},
+  {registered, []},
+  {mod, {'drawing_app', []}},
+  {env, []},
+  {applications, [kernel, stdlib, crypto, inets]}]}.
