@@ -2,6 +2,8 @@
     <head>
         <title>Drawing</title>
         <script src="jquery.js"></script>
+        <script src="base64.js"></script>
+        <script src="canvas2image.js"></script>
         <script>
             $(function(){
             	var xid = new Date().getTime();
@@ -13,7 +15,6 @@
 
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-
                 function log(){
                     var arr = Array.prototype.slice.call(arguments);
                     arr.push(xid);
@@ -25,10 +26,18 @@
                 }
                 
                 var canvas = {
+                    old: null,
+                    backup: function(){
+                    //	console.info("backup");
+                        this.old = ctx.getImageData(0,0,ctx.canvas.width,ctx.canvas.height);
+                    },
+                    restore: function(){
+                    //	console.info("restore");
+                        ctx.putImageData(this.old,0,0);
+                    },
                     down: function (x,y,nolog){
                         if(!nolog)log("down",x,y);
-                        ctx.putImageData(old,0,0);
-                        //ctx.restore();
+                        this.restore();
                         ctx.beginPath();
                         ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2,true);
                         ctx.closePath();
@@ -42,8 +51,7 @@
                         ctx.stroke();
                         ctx.closePath();
                         ctx.moveTo(x,y);
-                        old = ctx.getImageData(0,0,canvasElem.width,canvasElem.height);
-                        //ctx.save();
+                        this.backup();
                     },
                     move: function (x,y,nolog){
                         if(!nolog)log("move",x,y);
@@ -71,7 +79,7 @@
                 }
                 canvas.size(10);
                 canvas.color('#000000');
-                old = ctx.getImageData(0,0,canvasElem.width,canvasElem.height);
+                canvas.backup();
                 //ctx.save();
                 var master = true;
 
@@ -111,6 +119,7 @@
                 var mouse_down = false;
                 var mouse_inside = false;
                 $(document.body).bind('mouseup',function(evt){
+                    if(!master){return;}
                     if(!mouse_down){return;}
                     mouse_down = false;
                     if(!mouse_inside){return;}
@@ -118,6 +127,7 @@
                     canvas.up(x,y);
                 });
                 $('#canvas').bind('mousedown mouseenter',function(evt){
+                    if(!master){return;}
                 	var x = evt.offsetX, y=evt.offsetY;
                     if(evt.type=="mousedown"){
                         mouse_down = true;
@@ -129,17 +139,22 @@
                     canvas.down(x,y);
                     evt.preventDefault();
                 }).bind('mousemove mouseout',function(evt){
+                    if(!master){return;}
                     var x = evt.offsetX, y=evt.offsetY;
-                    if(evt.which==0 && evt.button==0)return;
                     if(!mouse_down){
-                        ctx.putImageData(old,0,0);
-                        //ctx.restore();
-                        ctx.beginPath();
-                        ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2,true);
-                        ctx.closePath();
-                        ctx.fill();
+                        canvas.restore();
+                        if(evt.type=="mousemove"){
+                            ctx.beginPath();
+                            ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2,true);
+                            ctx.closePath();
+                            ctx.fill();
+                        	ctx.globalCompositeOperation = 'xor';
+                        	ctx.fillText("x="+x+",y="+y,x,y);
+                            ctx.globalCompositeOperation = 'source-over';
+                        }
                         return;
                     }
+                    if(evt.which==0 && evt.button==0)return;
                     if(evt.type=="mousemove"){
                         canvas.move(x,y);
                         console.info(evt.which);
@@ -158,6 +173,27 @@
                 });
                 $("#size_picker").bind('change',function(){
                     canvas.size($(this).attr('value'));
+                });
+                $("#upload").click(function(){
+                    var data = canvasElem.toDataURL("image/png");
+                    $.ajax({
+                        url:'http://dev.icybear.net/upload.php',
+                        type:'POST',
+                        contentType:'text/plain',
+                        data:data,
+                        success:function(evt){
+                            console.info(evt);
+                        },
+                        error:function(evt){
+                            console.error(evt);
+                        },
+                    });
+                });
+                $("#image_url").change(function(){
+                    $("img").attr('src',$(this).attr('value'));
+                });
+                $("img").bind("load",function(){
+                    ctx.drawImage(this,0,0);
                 });
             });
         </script>
@@ -181,10 +217,11 @@
         </style>
     </head>
     <body>
+        <input type="text" id="image_url"/>
+        <img id="img"></img>
         <div id="msg"></div>
         <canvas id="canvas" height="300px" width="400px" style="cursor:crosshair;border: 2px solid gray;"></canvas>
         <div id="control">
-            <input type="checkbox" id="master_switch"/><label>Master</label>
             <table bgcolor="#c0c0c0">
                 <tr>
                     <td rowspan="2"><div class="color_picker" value="#FFFFFF"></div></td>
@@ -217,6 +254,8 @@
                     <td><div class="color_picker" value="#0077FF"></div></td>
                 </tr>
             <table>
+            <input type="button" id="upload" value="Upload"/>
         </div>
+        
     </body>
 </html>
